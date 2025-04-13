@@ -27,13 +27,10 @@ function App() {
   const [searchQuery, setSearchQuery] = useState("");
   const isMobile = useMediaQuery("(max-width:600px)");
   const jobsPerPage = 5;
-  const maxDescriptionLines = 3;
 
   useEffect(() => {
     setJobs(jobsData);
   }, []);
-
-  const jobCardWidth = 360;
 
   const theme = createTheme({
     palette: {
