@@ -17,20 +17,67 @@ import {
   Typography,
   createTheme,
   useMediaQuery,
+  IconButton,
+  Collapse,
+  Paper,
+  Modal,
+  Alert,
 } from "@mui/material";
-import { Search, Login } from "@mui/icons-material";
+import { Search, Login, FilterList, Clear, Logout } from "@mui/icons-material";
+import { useSearchParams, useNavigate, useLocation } from "react-router-dom";
 import jobsData from "./jobs.json";
+
+const DEMO_USERNAME = "minh demo";
+const DEMO_PASSWORD = "welcomeminh";
+
+const getLastUsedCredentials = () => ({
+  username: localStorage.getItem("lastUsername") || DEMO_USERNAME,
+  password: localStorage.getItem("lastPassword") || DEMO_PASSWORD
+});
 
 function App() {
   const [jobs, setJobs] = useState([]);
   const [page, setPage] = useState(1);
   const [searchQuery, setSearchQuery] = useState("");
+  const [locationQuery, setLocationQuery] = useState("");
+  const [skillsQuery, setSkillsQuery] = useState("");
+  const [showFilters, setShowFilters] = useState(false);
+  const [showLoginModal, setShowLoginModal] = useState(false);
+  const [showJobModal, setShowJobModal] = useState(false);
+  const [selectedJob, setSelectedJob] = useState(null);
+  const [username, setUsername] = useState("");
+  const [password, setPassword] = useState("");
+  const [error, setError] = useState("");
+  const [isAuthenticated, setIsAuthenticated] = useState(false);
+  const [currentUser, setCurrentUser] = useState(localStorage.getItem("username") || "");
+  const [returnToJobAfterLogin, setReturnToJobAfterLogin] = useState(null);
   const isMobile = useMediaQuery("(max-width:600px)");
   const jobsPerPage = 5;
+  const [searchParams, setSearchParams] = useSearchParams();
+  const navigate = useNavigate();
+  const location = useLocation();
 
   useEffect(() => {
     setJobs(jobsData);
-  }, []);
+    const query = searchParams.get("q") || "";
+    const locationParam = searchParams.get("location") || "";
+    const skills = searchParams.get("skills") || "";
+    setSearchQuery(query);
+    setLocationQuery(locationParam);
+    setSkillsQuery(skills);
+
+    if (location.pathname === "/login") {
+      setShowLoginModal(true);
+      const lastCreds = getLastUsedCredentials();
+      setUsername(lastCreds.username);
+      setPassword(lastCreds.password);
+    }
+
+    const storedAuth = localStorage.getItem("isAuthenticated");
+    if (storedAuth === "true") {
+      setIsAuthenticated(true);
+    }
+  }, [location.pathname]);
 
   const theme = createTheme({
     palette: {
@@ -79,11 +126,36 @@ function App() {
     window.scrollTo({ top: 0, behavior: "smooth" });
   };
 
-  const filteredJobs = jobs.filter(
-    (job) =>
+  const updateSearchParams = () => {
+    const params = new URLSearchParams();
+    if (searchQuery) params.set("q", searchQuery);
+    if (locationQuery) params.set("location", locationQuery);
+    if (skillsQuery) params.set("skills", skillsQuery);
+    setSearchParams(params);
+  };
+
+  useEffect(() => {
+    updateSearchParams();
+  }, [searchQuery, locationQuery, skillsQuery]);
+
+  const filteredJobs = jobs.filter((job) => {
+    const matchesSearch =
+      !searchQuery ||
       job.title.toLowerCase().includes(searchQuery.toLowerCase()) ||
-      job.description.toLowerCase().includes(searchQuery.toLowerCase())
-  );
+      job.description.toLowerCase().includes(searchQuery.toLowerCase());
+
+    const matchesLocation =
+      !locationQuery ||
+      job.city.toLowerCase().includes(locationQuery.toLowerCase());
+
+    const matchesSkills =
+      !skillsQuery ||
+      job.skills.some((skill) =>
+        skill.toLowerCase().includes(skillsQuery.toLowerCase())
+      );
+
+    return matchesSearch && matchesLocation && matchesSkills;
+  });
 
   const startIndex = (page - 1) * jobsPerPage;
   const displayedJobs = filteredJobs.slice(
@@ -99,43 +171,159 @@ function App() {
           position="sticky"
           sx={{ bgcolor: "#242424", boxShadow: "none" }}
         >
-          <Toolbar>
+          <Toolbar sx={{ display: 'flex', justifyContent: 'space-between', gap: 2 }}>
             <Typography
               variant="h6"
               component="div"
-              sx={{ flexGrow: 0, mr: 3, fontSize: "1rem" }}
+              sx={{ fontSize: "1rem", whiteSpace: 'nowrap' }}
             >
               Job Routing
             </Typography>
-            <TextField
-              size="small"
-              placeholder="Search"
-              sx={{
-                flexGrow: 1,
-                maxWidth: 400,
-                "& .MuiOutlinedInput-root": {
-                  bgcolor: "rgba(255,255,255,0.1)",
-                },
-              }}
-              value={searchQuery}
-              onChange={(e) => setSearchQuery(e.target.value)}
-              InputProps={{
-                startAdornment: (
-                  <InputAdornment position="start">
-                    <Search sx={{ color: "rgba(255,255,255,0.7)" }} />
-                  </InputAdornment>
-                ),
-              }}
-            />
-            <Button
-              color="inherit"
-              startIcon={<Login />}
-              sx={{ ml: 2, textTransform: "uppercase", fontSize: "0.875rem" }}
-            >
-              Sign in
-            </Button>
+
+            <Box sx={{ 
+              flex: 1,
+              maxWidth: '500px',
+              display: 'flex',
+              alignItems: 'center',
+              gap: 1
+            }}>
+              <TextField
+                size="small"
+                placeholder="Search"
+                fullWidth
+                sx={{
+                  "& .MuiOutlinedInput-root": {
+                    bgcolor: "rgba(255,255,255,0.1)",
+                  },
+                }}
+                value={searchQuery}
+                onChange={(e) => setSearchQuery(e.target.value)}
+                InputProps={{
+                  startAdornment: (
+                    <InputAdornment position="start">
+                      <Search sx={{ color: "rgba(255,255,255,0.7)" }} />
+                    </InputAdornment>
+                  ),
+                }}
+              />
+              <IconButton
+                color="inherit"
+                onClick={() => setShowFilters(!showFilters)}
+                sx={{
+                  bgcolor: showFilters ? "rgba(255,255,255,0.1)" : "transparent",
+                  flexShrink: 0
+                }}
+              >
+                <FilterList />
+              </IconButton>
+            </Box>
+
+            <Box sx={{ display: 'flex', alignItems: 'center', gap: 1, flexShrink: 0 }}>
+              {isAuthenticated ? (
+                <>
+                  <Typography
+                    variant="body2"
+                    sx={{ 
+                      color: 'rgba(255,255,255,0.7)',
+                      fontSize: '0.875rem',
+                      whiteSpace: 'nowrap'
+                    }}
+                  >
+                    {currentUser}
+                  </Typography>
+                  <Button
+                    color="inherit"
+                    onClick={() => {
+                      setIsAuthenticated(false);
+                      setCurrentUser("");
+                      localStorage.removeItem("isAuthenticated");
+                      localStorage.removeItem("username");
+                      navigate("/");
+                    }}
+                    sx={{ 
+                      fontSize: "0.875rem",
+                      whiteSpace: 'nowrap',
+                      minWidth: 'auto'
+                    }}
+                  >
+                    Sign out
+                  </Button>
+                </>
+              ) : (
+                <Button
+                  color="inherit"
+                  onClick={() => {
+                    setShowLoginModal(true);
+                    navigate("/login");
+                  }}
+                  sx={{ 
+                    fontSize: "0.875rem",
+                    whiteSpace: 'nowrap',
+                    minWidth: 'auto'
+                  }}
+                >
+                  Sign in
+                </Button>
+              )}
+            </Box>
           </Toolbar>
         </AppBar>
+        <Collapse in={showFilters}>
+          <Paper
+            sx={{
+              bgcolor: "#242424",
+              borderTop: "1px solid rgba(255,255,255,0.1)",
+              borderRadius: 0,
+              px: 2,
+              py: 1.5,
+            }}
+          >
+            <Grid container spacing={2} alignItems="center">
+              <Grid item xs={12} sm={6}>
+                <TextField
+                  size="small"
+                  fullWidth
+                  placeholder="Filter by location"
+                  value={locationQuery}
+                  onChange={(e) => setLocationQuery(e.target.value)}
+                  InputProps={{
+                    endAdornment: locationQuery && (
+                      <InputAdornment position="end">
+                        <IconButton
+                          size="small"
+                          onClick={() => setLocationQuery("")}
+                        >
+                          <Clear />
+                        </IconButton>
+                      </InputAdornment>
+                    ),
+                  }}
+                />
+              </Grid>
+              <Grid item xs={12} sm={6}>
+                <TextField
+                  size="small"
+                  fullWidth
+                  placeholder="Filter by skills"
+                  value={skillsQuery}
+                  onChange={(e) => setSkillsQuery(e.target.value)}
+                  InputProps={{
+                    endAdornment: skillsQuery && (
+                      <InputAdornment position="end">
+                        <IconButton
+                          size="small"
+                          onClick={() => setSkillsQuery("")}
+                        >
+                          <Clear />
+                        </IconButton>
+                      </InputAdornment>
+                    ),
+                  }}
+                />
+              </Grid>
+            </Grid>
+          </Paper>
+        </Collapse>
 
         <Container
           sx={{
@@ -164,6 +352,23 @@ function App() {
                     border: "1px solid rgba(255,255,255,0.1)",
                     display: "flex",
                     flexDirection: "column",
+                    cursor: "pointer",
+                    transition: "all 0.2s",
+                    "&:hover": {
+                      transform: "translateY(-4px)",
+                      boxShadow: "0 4px 20px rgba(0,0,0,0.1)",
+                      borderColor: "primary.main",
+                    },
+                  }}
+                  onClick={() => {
+                    if (isAuthenticated) {
+                      setSelectedJob(job);
+                      setShowJobModal(true);
+                    } else {
+                      setReturnToJobAfterLogin(job);
+                      setShowLoginModal(true);
+                      navigate("/login");
+                    }
                   }}
                 >
                   <CardContent
@@ -293,6 +498,166 @@ function App() {
             />
           </Box>
         </Container>
+
+        {/* Login Modal */}
+        <Modal
+          open={showLoginModal}
+          onClose={() => {
+            setShowLoginModal(false);
+            setError("");
+            const lastCreds = getLastUsedCredentials();
+            setUsername(lastCreds.username);
+            setPassword(lastCreds.password);
+            if (location.pathname === "/login") {
+              navigate(-1);
+            }
+          }}
+          aria-labelledby="login-modal"
+        >
+          <Box
+            sx={{
+              position: "absolute",
+              top: "50%",
+              left: "50%",
+              transform: "translate(-50%, -50%)",
+              width: { xs: "90%", sm: 400 },
+              bgcolor: "background.paper",
+              borderRadius: 1,
+              boxShadow: 24,
+              p: 4,
+            }}
+          >
+            <Typography variant="h6" component="h2" gutterBottom>
+              Sign In
+            </Typography>
+            {error && (
+              <Alert severity="error" sx={{ mb: 2 }}>
+                {error}
+              </Alert>
+            )}
+            <TextField
+              fullWidth
+              label="Username"
+              value={username}
+              onChange={(e) => setUsername(e.target.value)}
+              margin="normal"
+              defaultValue={DEMO_USERNAME}
+              placeholder="Username: minh demo"
+            />
+            <TextField
+              fullWidth
+              label="Password"
+              type="password"
+              value={password}
+              onChange={(e) => setPassword(e.target.value)}
+              margin="normal"
+              defaultValue={DEMO_PASSWORD}
+              placeholder="Password: welcomeminh"
+            />
+            <Button
+              fullWidth
+              variant="contained"
+              sx={{ mt: 3 }}
+              onClick={() => {
+                if (username.trim() && password.trim()) {
+                  // Save the credentials for next login
+                  localStorage.setItem("lastUsername", username.trim());
+                  localStorage.setItem("lastPassword", password.trim());
+                  const trimmedUsername = username.trim();
+                  setIsAuthenticated(true);
+                  setCurrentUser(trimmedUsername);
+                  localStorage.setItem("isAuthenticated", "true");
+                  localStorage.setItem("username", trimmedUsername);
+                  setShowLoginModal(false);
+                  setError("");
+                  setUsername("");
+                  setPassword("");
+                  if (returnToJobAfterLogin) {
+                    setSelectedJob(returnToJobAfterLogin);
+                    setShowJobModal(true);
+                    setReturnToJobAfterLogin(null);
+                    navigate(-1);
+                  } else {
+                    navigate("/");
+                  }
+                } else {
+                  setError("Please enter both username and password");
+                }
+              }}
+            >
+              Sign In
+            </Button>
+          </Box>
+        </Modal>
+
+        {/* Job Details Modal */}
+        <Modal
+          open={showJobModal}
+          onClose={() => setShowJobModal(false)}
+          aria-labelledby="job-modal"
+        >
+          <Box
+            sx={{
+              position: "absolute",
+              top: "50%",
+              left: "50%",
+              transform: "translate(-50%, -50%)",
+              width: { xs: "90%", sm: 600 },
+              maxHeight: "90vh",
+              overflow: "auto",
+              bgcolor: "background.paper",
+              borderRadius: 1,
+              boxShadow: 24,
+              p: 4,
+            }}
+          >
+            {selectedJob && (
+              <>
+                <Typography variant="h5" component="h2" gutterBottom>
+                  {selectedJob.title}
+                </Typography>
+                <Box sx={{ mb: 2 }}>
+                  <Typography variant="body2" color="text.secondary" gutterBottom>
+                    📍 {selectedJob.city} {selectedJob.remote && "(Remote Available)"}
+                  </Typography>
+                  <Typography variant="body2" color="text.secondary" gutterBottom>
+                    💰 ${selectedJob.salaryLow.toLocaleString()} - ${selectedJob.salaryHigh.toLocaleString()}
+                  </Typography>
+                  <Typography variant="body2" color="text.secondary" gutterBottom>
+                    ⭐ {selectedJob.yrsXPExpected} years experience required
+                  </Typography>
+                </Box>
+                <Typography variant="body1">
+                  {selectedJob.description}
+                </Typography>
+                <Box sx={{ mt: 2 }}>
+                  <Typography variant="subtitle2" gutterBottom>
+                    Required Skills:
+                  </Typography>
+                  <Box sx={{ display: "flex", gap: 1, flexWrap: "wrap" }}>
+                    {selectedJob.skills.map((skill, index) => (
+                      <Chip
+                        key={index}
+                        label={skill}
+                        size="small"
+                        color="primary"
+                        variant="outlined"
+                      />
+                    ))}
+                  </Box>
+                </Box>
+                <Button
+                  fullWidth
+                  variant="contained"
+                  sx={{ mt: 3 }}
+                  onClick={() => setShowJobModal(false)}
+                >
+                  Close
+                </Button>
+              </>
+            )}
+          </Box>
+        </Modal>
       </Box>
     </ThemeProvider>
   );
