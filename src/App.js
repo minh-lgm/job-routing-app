@@ -23,7 +23,7 @@ import {
   Modal,
   Alert,
 } from "@mui/material";
-import { Search, Login, FilterList, Clear, Logout } from "@mui/icons-material";
+import { Search, FilterList, Clear } from "@mui/icons-material";
 import { useSearchParams, useNavigate, useLocation } from "react-router-dom";
 import jobsData from "./jobs.json";
 
@@ -77,7 +77,7 @@ function App() {
     if (storedAuth === "true") {
       setIsAuthenticated(true);
     }
-  }, [location.pathname]);
+  }, [location.pathname, searchParams]);
 
   const theme = createTheme({
     palette: {
@@ -136,7 +136,7 @@ function App() {
 
   useEffect(() => {
     updateSearchParams();
-  }, [searchQuery, locationQuery, skillsQuery]);
+  }, [searchQuery, locationQuery, skillsQuery, setSearchParams, updateSearchParams]);
 
   const filteredJobs = jobs.filter((job) => {
     const matchesSearch =
@@ -590,7 +590,6 @@ function App() {
           </Box>
         </Modal>
 
-        {/* Job Details Modal */}
         <Modal
           open={showJobModal}
           onClose={() => setShowJobModal(false)}
