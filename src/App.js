@@ -1,4 +1,4 @@
-import { useState, useEffect } from "react";
+import { useState, useEffect, useCallback } from "react";
 import {
   AppBar,
   Box,
@@ -126,17 +126,17 @@ function App() {
     window.scrollTo({ top: 0, behavior: "smooth" });
   };
 
-  const updateSearchParams = () => {
+  const updateSearchParams = useCallback(() => {
     const params = new URLSearchParams();
     if (searchQuery) params.set("q", searchQuery);
     if (locationQuery) params.set("location", locationQuery);
     if (skillsQuery) params.set("skills", skillsQuery);
     setSearchParams(params);
-  };
+  }, [searchQuery, locationQuery, skillsQuery, setSearchParams]);
 
   useEffect(() => {
     updateSearchParams();
-  }, [searchQuery, locationQuery, skillsQuery, setSearchParams, updateSearchParams]);
+  }, [updateSearchParams]);
 
   const filteredJobs = jobs.filter((job) => {
     const matchesSearch =
